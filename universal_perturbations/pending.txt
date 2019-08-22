@@ -1,0 +1,2 @@
+1. Add utils folder with files for each dataset.
+2. Each file contains info like mean, variance, classes etc.
