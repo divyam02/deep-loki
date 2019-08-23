@@ -9,14 +9,14 @@ Functions for network specific images,
 creating batches etc.
 """
 
-def project_norm(v, xi, p):
+def project_norm(v, norm_size, p_value):
 	"""
 	Project perturbation norm onto sphere(0, xi)
 	"""
-	if p==2:
-		norm = v * min(1, xi/np.linalg.norm(v.flatten(1)))	# v is a what?
-	elif p==np.inf:
-		v = np.sign(v) * np.minimum(abs(v), xi)
+	if p_value==2:
+		norm = v * min(1, norm_size/np.linalg.norm(v.flatten(1)))	# v is a what?
+	elif p_value==np.inf:
+		v = np.sign(v) * np.minimum(abs(v), norm_size)
 	else:
 		raise ValueError("Projection unavailable for given norm value.")
 
@@ -32,23 +32,41 @@ def tensor2numpy(train_data):
 
 	return new_numpy
 
-def get_fooling_rate(val_data, perturbation):
+def get_fooling_rate(val_loader, classifier ,perturbation):
 	"""
 	Calculate fooling rate: 
-	val_data accuracy/ perturbed_val_data accuracy
+	got diff answer / all answers
 	"""
 	v = perturbation
-	pass
+	val_iter = iter(val_loader)
+	fooled = 0
+	total = list(val_iter.size())[0]
 
-def universal_perturbation(	train_data, val_data,classifier, grads, delta=0.1, 
+	with torch.no_grad():
+		for i in range(total):
+			data = next(val_iter)
+			img, label = data
+			output = classifier(img)
+			_, true_predicted = torch.max(output.data, 1)
+			output_pertubed = classifier(img+perturbation)
+			_, pert_predicted = torch.max(output.data, 1)
+
+			if true_predicted!=pert_predicted:
+				fooled+=1
+
+		print("Fooling rate on validation set", fooled/total)
+
+	return fooled/total
+
+def universal_perturbation(	train_loader, val_loader, classifier, grads, delta=0.1, 
 							max_iter=np.inf, norm_size=10, p_value=np.inf, 
 							num_classes=10, overshoot=0.02, max_iter_deepfool=10):
 	
 	"""
-    @train_data: 
+    @train_loader: 
     	Images of size MxCxHxW (M: number of images), in tensor form.
 
-	@val_data:
+	@val_loader:
 		images of siz MxCxHxW (M: number of images), in tensor form. Use for fooling rate calculation!
  
     @classifier: 
@@ -96,7 +114,13 @@ def universal_perturbation(	train_data, val_data,classifier, grads, delta=0.1,
 				"""
 				Get incremental perturbation delta_vi for image i
 				"""
-				pass
+				delta_vi, iter, _, _ = deepfool(curr_img+v, classifier, grads, num_classes=num_classes, 
+												overshoot=overshoot, max_iter = max_iter_deepfool)
+				if iter < max_iter_deepfool:
+					v += delta_vi
+					v = project_norm(v, norm_size, p_value)
 
 		total_steps+=1
+		fooling_rate = get_fooling_rate(val_loader, classifier, v)
 
+	return v
