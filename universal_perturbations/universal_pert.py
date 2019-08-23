@@ -63,6 +63,8 @@ def universal_perturbation(	train_loader, val_loader, classifier, grads, delta=0
 							num_classes=10, overshoot=0.02, max_iter_deepfool=10):
 	
 	"""
+	Returns universal perturbation vector.
+	
     @train_loader: 
     	Images of size MxCxHxW (M: number of images), in tensor form.
 

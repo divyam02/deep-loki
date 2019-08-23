@@ -89,6 +89,9 @@ if __name__ == '__main__':
 	print(data[0], data[1])
 	print(all_data)
 	"""
+
+	# turn on eval mode before any of this.
+
 	# Get dataloader after preprocessing.
 	# get training, validation and test sets (fixed)
 		# What should be batchsize??
