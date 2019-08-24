@@ -73,19 +73,25 @@ if __name__ == '__main__':
 	indices = list(range(train_size))
 	np.random.shuffle(indices)
 	split = int(np.floor(0.1*train_size))
+	print(split)
 	train_idx, val_idx = indices[split:], indices[:split]
+	print(len(train_idx), len(val_idx))
 	train_sampler = sampler.SubsetRandomSampler(train_idx)
 	val_sampler = sampler.SubsetRandomSampler(val_idx)
 
 	train_size = len(train_idx)
 	val_size = len(val_idx)
 
-	train_loader = torch.utils.data.DataLoader(all_data, batch_size=256,
+	train_loader = torch.utils.data.DataLoader(all_data, batch_size=1,
 												sampler=train_sampler)
-	val_loader = torch.utils.data.DataLoader(all_data, batch_size=256,
+	val_loader = torch.utils.data.DataLoader(all_data, batch_size=1,
 												sampler=val_sampler)
-	test_loader = torch.utils.data.DataLoader(test_data, batch_size=256,
+	test_loader = torch.utils.data.DataLoader(test_data, batch_size=1,
 											shuffle=False)
+
+	print(len(train_loader.dataset), len(test_loader.dataset), len(val_loader.dataset))
+	input()
+
 
 	if args.net=="resnet50":
 		net = resnet50(pretrained=True) # CIFAR10 pretrained!
@@ -101,10 +107,20 @@ if __name__ == '__main__':
 		v = torch.from_numpy(np.load(pert_file)[0])
 	else:
 		v = get_univ_pert(train_loader, val_loader, net)
-		np.save('../utils/perturbations/universal_pert.npy', v.numpy())
+		np.save('../utils/perturbations/universal_pert.npy', v.detach().numpy())
+
+	
+	# A precaution. Not sure if net has been modified despite net.eval()
+	if args.net=="resnet50":
+		net = resnet50(pretrained=True) # CIFAR10 pretrained!
+
+	elif args.net=="densenet121":
+		net = densenet121(pretrained=True) # CIFAR10 pretrained!
+
+	net.eval()
 
 	test_iter = iter(test_loader)
-	test_len = len(test_iter)
+	test_len = len(test_loader.dataset)
 	correct = 0
 	for i in range(test_len):
 		with torch.no_grad():
@@ -115,6 +131,7 @@ if __name__ == '__main__':
 				correct+=1
 
 	print("Network accuracy on perturbed test data:", 100 * correct/total)
+
 	"""
 	train_iter = iter(train_loader)
 	data = next(train_iter)
@@ -122,10 +139,5 @@ if __name__ == '__main__':
 	print(all_data)
 	"""
 
-	# turn on eval mode before any of this.
-
-	# Get dataloader after preprocessing.
 	# get training, validation and test sets (fixed)
 		# What should be batchsize??
-	# get perturbation, check against validation
-	# copy and perturb test images, save in folder.

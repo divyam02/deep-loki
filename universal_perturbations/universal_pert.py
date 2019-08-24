@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.transforms as transforms
+import torchvision.transforms as transforms
 from deepfool import *
 import numpy as np
 
@@ -40,8 +40,8 @@ def get_fooling_rate(val_loader, classifier ,perturbation):
 	v = perturbation
 	val_iter = iter(val_loader)
 	fooled = 0
-	total = list(val_iter.size())[0]
-
+	total = len(val_loader.dataset)
+	print("Validation data length:", total)
 	with torch.no_grad():
 		for i in range(total):
 			data = next(val_iter)
@@ -54,7 +54,8 @@ def get_fooling_rate(val_loader, classifier ,perturbation):
 			if true_predicted!=pert_predicted:
 				fooled+=1
 
-		print("Fooling rate on validation set", fooled/total, "\n")
+		print("Fooling rate on validation set", 100 * fooled/total, "\n")
+		input()
 
 	return fooled/total
 
@@ -65,60 +66,61 @@ def get_univ_pert(	train_loader, val_loader, classifier, delta=0.1,
 	"""
 	Returns universal perturbation vector.
 
-    @train_loader: 
-    	Images of size MxCxHxW (M: number of images), in tensor form.
+	@train_loader: 
+		Images of size MxCxHxW (M: number of images), in tensor form.
 
 	@val_loader:
 		images of siz MxCxHxW (M: number of images), in tensor form. Use for fooling rate calculation!
- 
-    @classifier: 
-    	feedforward function (input: images, output: values of activation BEFORE softmax).
 
-    @grads: 
-    	gradient functions with respect to input (as many gradients as classes).
+	@classifier: 
+		feedforward function (input: images, output: values of activation BEFORE softmax).
 
-    @delta: 
-    	controls the desired fooling rate (default = 80% fooling rate)
+	@grads: 
+		gradient functions with respect to input (as many gradients as classes).
 
-    @max_iter: 
-    	optional other termination criterion (maximum number of iteration, default = np.inf)
+	@delta: 
+		controls the desired fooling rate (default = 80% fooling rate)
 
-    @norm_size: 
-    	controls the l_p magnitude of the perturbation (default = 10)
+	@max_iter: 
+		optional other termination criterion (maximum number of iteration, default = np.inf)
 
-    @p_value: 
-    	norm to be used (2, inf, default = np.inf)
+	@norm_size: 
+		controls the l_p magnitude of the perturbation (default = 10)
 
-    @num_classes: 
-    	num_classes (limits the number of classes to test against, by default = 10)
+	@p_value: 
+		norm to be used (2, inf, default = np.inf)
 
-    @overshoot: 
-    	used as a termination criterion to prevent vanishing updates (default = 0.02).
+	@num_classes: 
+		num_classes (limits the number of classes to test against, by default = 10)
 
-    @max_iter_deepfool: 
-    	maximum number of iterations for deepfool (default = 10)
+	@overshoot: 
+		used as a termination criterion to prevent vanishing updates (default = 0.02).
 
-    return: the universal perturbation.
+	@max_iter_deepfool: 
+		maximum number of iterations for deepfool (default = 10)
+
+	return: the universal perturbation.
     """
-    v = 0 # perturbation vector 
-    fooling_rate = 0.0
-    total_steps = 0
-    #np_train_data = tensor2numpy(train_data)
-    train_size = list(np_train_data.size())[0]
-
-    while fooling_rate<1-delta and total_steps<max_iter:
-    	# Shuffle data!		
+	v = 0 # perturbation vector 
+	fooling_rate = 0.0
+	total_steps = 0
+	#np_train_data = tensor2numpy(train_data)
+	train_size  = 45000
+	train_iter = iter(train_loader)
+	while fooling_rate<1-delta and total_steps<max_iter:
+		# Shuffle data!	
+		print("Total passes:", total_steps)	
 		for i in range(train_size):
-			curr_img = train_data[i]
+			curr_img, label = next(train_iter)
 
-			if np.argmax(classifier(curr_img).numpy().flatten()) == np.argmax(classifier(curr_img + v).numpy().flatten()):
+			if np.argmax(classifier(curr_img).detach().numpy().flatten()) == np.argmax(classifier(curr_img + v).detach().numpy().flatten()):
 				"""
 				Get incremental perturbation delta_vi for image i
 				"""
-				print("Iteration", total_steps)
-				delta_vi, iter, _, _, _ = deepfool(curr_img+v, classifier, num_classes=num_classes, 
+				print("images read", i+1)
+				delta_vi, d_iter, _, _, _ = deepfool(curr_img+v, curr_img, classifier, num_classes=num_classes, 
 												overshoot=overshoot, max_iter = max_iter_deepfool)
-				if iter < max_iter_deepfool:
+				if d_iter < max_iter_deepfool:
 					v += delta_vi
 					v = project_norm(v, norm_size, p_value)
 
