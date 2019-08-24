@@ -54,17 +54,17 @@ def get_fooling_rate(val_loader, classifier ,perturbation):
 			if true_predicted!=pert_predicted:
 				fooled+=1
 
-		print("Fooling rate on validation set", fooled/total)
+		print("Fooling rate on validation set", fooled/total, "\n")
 
 	return fooled/total
 
-def universal_perturbation(	train_loader, val_loader, classifier, grads, delta=0.1, 
-							max_iter=np.inf, norm_size=10, p_value=np.inf, 
-							num_classes=10, overshoot=0.02, max_iter_deepfool=10):
+def get_univ_pert(	train_loader, val_loader, classifier, delta=0.1, 
+					max_iter=np.inf, norm_size=10, p_value=np.inf, 
+					num_classes=10, overshoot=0.02, max_iter_deepfool=10):
 	
 	"""
 	Returns universal perturbation vector.
-	
+
     @train_loader: 
     	Images of size MxCxHxW (M: number of images), in tensor form.
 
@@ -107,8 +107,7 @@ def universal_perturbation(	train_loader, val_loader, classifier, grads, delta=0
     train_size = list(np_train_data.size())[0]
 
     while fooling_rate<1-delta and total_steps<max_iter:
-    	# Shuffle data
-		
+    	# Shuffle data!		
 		for i in range(train_size):
 			curr_img = train_data[i]
 
@@ -116,7 +115,8 @@ def universal_perturbation(	train_loader, val_loader, classifier, grads, delta=0
 				"""
 				Get incremental perturbation delta_vi for image i
 				"""
-				delta_vi, iter, _, _ = deepfool(curr_img+v, classifier, grads, num_classes=num_classes, 
+				print("Iteration", total_steps)
+				delta_vi, iter, _, _, _ = deepfool(curr_img+v, classifier, num_classes=num_classes, 
 												overshoot=overshoot, max_iter = max_iter_deepfool)
 				if iter < max_iter_deepfool:
 					v += delta_vi

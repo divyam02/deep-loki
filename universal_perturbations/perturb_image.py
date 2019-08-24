@@ -101,10 +101,20 @@ if __name__ == '__main__':
 		v = torch.from_numpy(np.load(pert_file)[0])
 	else:
 		v = get_univ_pert(train_loader, val_loader, net)
-		np.save('../utils/perturbations/universal_pert.npy', v)
+		np.save('../utils/perturbations/universal_pert.npy', v.numpy())
 
-	
+	test_iter = iter(test_loader)
+	test_len = len(test_iter)
+	correct = 0
+	for i in range(test_len):
+		with torch.no_grad():
+			img, label = next(test_iter)
+			output = net(img + v) # Use perturbed image!
+			_, predicted = torch.max(output, 1)
+			if predicted==label:
+				correct+=1
 
+	print("Network accuracy on perturbed test data:", 100 * correct/total)
 	"""
 	train_iter = iter(train_loader)
 	data = next(train_iter)
