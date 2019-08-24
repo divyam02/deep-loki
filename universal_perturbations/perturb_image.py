@@ -7,6 +7,10 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import argparse
+from deepfool import *
+from universal_pert import *
+from utils.models import *
+
 
 def parse_args():
 	"""
@@ -82,6 +86,24 @@ if __name__ == '__main__':
 												sampler=val_sampler)
 	test_loader = torch.utils.data.DataLoader(test_data, batch_size=256,
 											shuffle=False)
+
+	if args.net=="resnet50":
+		net = resnet50(pretrained=True) # CIFAR10 pretrained!
+
+	elif args.net=="densenet121":
+		net = densenet121(pretrained=True) # CIFAR10 pretrained!
+
+	net.eval()
+
+	pert_file = '../utils/perturbations/universal_pert.npy'
+
+	if os.path.isfile(pert_file):
+		v = torch.from_numpy(np.load(pert_file)[0])
+	else:
+		v = get_univ_pert(train_loader, val_loader, net)
+		np.save('../utils/perturbations/universal_pert.npy', v)
+
+	
 
 	"""
 	train_iter = iter(train_loader)
