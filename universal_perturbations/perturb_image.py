@@ -106,7 +106,7 @@ if __name__ == '__main__':
 		v = torch.from_numpy(np.load(pert_file)[0])
 	else:
 		v = get_univ_pert(train_loader, val_loader, net, args.cuda)
-		np.save('pert_univ', v.cpu().detach().numpy())
+		np.save('pert_univ', v.detach().cpu().numpy())
 
 	
 	# A precaution. Not sure if net has been modified despite net.eval()

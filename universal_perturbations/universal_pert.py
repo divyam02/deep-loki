@@ -64,8 +64,8 @@ def get_fooling_rate(val_loader, classifier ,perturbation):
 	return fooled/5000
 
 def get_univ_pert(	train_loader, val_loader, classifier, is_cuda, delta=0.15, 
-					max_iter=np.inf, norm_size=0.1, p_value=np.inf, 
-					num_classes=10, overshoot=0.02, max_iter_deepfool=20):
+					max_iter=np.inf, norm_size=0.5, p_value=np.inf, 
+					num_classes=10, overshoot=0.02, max_iter_deepfool=15):
 	
 	"""
 	Returns universal perturbation vector.
@@ -121,7 +121,7 @@ def get_univ_pert(	train_loader, val_loader, classifier, is_cuda, delta=0.15,
 			curr_img, label = next(train_iter)
 			if is_cuda:
 				curr_img = curr_img.cuda()
-			if np.argmax(classifier(curr_img).cpu().detach().numpy().flatten()) == np.argmax(classifier(curr_img + v).cpu().detach().numpy().flatten()):
+			if np.argmax(classifier(curr_img).detach().cpu().numpy().flatten()) == np.argmax(classifier(curr_img + v).detach().cpu().numpy().flatten()):
 				"""
 				Get incremental perturbation delta_vi for image i
 				"""
@@ -136,7 +136,7 @@ def get_univ_pert(	train_loader, val_loader, classifier, is_cuda, delta=0.15,
 					v += delta_vi
 					v = project_norm(v, norm_size, p_value)
 
-			if (i+1)%1500 == 0:
+			if (i+1)%2500 == 0:
 				fooling_rate = get_fooling_rate(val_loader, classifier, v)
 				if fooling_rate >= 1 - delta:
 					break
