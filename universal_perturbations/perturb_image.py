@@ -54,8 +54,8 @@ if __name__ == '__main__':
 		morph = transforms.Compose([transforms.ToTensor(),
 								transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], 
 									std=[0.2023, 0.1994, 0.2010])])
-		all_data = datasets.CIFAR10(root = '../data/', transform=morph, train=True)
-		test_data = datasets.CIFAR10(root='../data/', transform=morph, train=False)
+		all_data = datasets.CIFAR10(root = '../data/', transform=morph, train=True, download=True)
+		test_data = datasets.CIFAR10(root='../data/', transform=morph, train=False, download=True)
 
 
 	elif args.dataset=='cifar100':
@@ -84,9 +84,9 @@ if __name__ == '__main__':
 
 	train_loader = torch.utils.data.DataLoader(all_data, batch_size=1,
 												sampler=train_sampler)
-	val_loader = torch.utils.data.DataLoader(all_data, batch_size=1,
+	val_loader = torch.utils.data.DataLoader(all_data, batch_size=250,
 												sampler=val_sampler)
-	test_loader = torch.utils.data.DataLoader(test_data, batch_size=1,
+	test_loader = torch.utils.data.DataLoader(test_data, batch_size=250,
 											shuffle=False)
 
 	if args.net=="resnet50":
@@ -106,7 +106,7 @@ if __name__ == '__main__':
 		v = torch.from_numpy(np.load(pert_file)[0])
 	else:
 		v = get_univ_pert(train_loader, val_loader, net, args.cuda)
-		np.save('../utils/perturbations/universal_pert.npy', v.detach().numpy())
+		np.save('pert_univ', v.cpu().detach().numpy())
 
 	
 	# A precaution. Not sure if net has been modified despite net.eval()
@@ -116,18 +116,23 @@ if __name__ == '__main__':
 	elif args.net=="densenet121":
 		net = densenet121(pretrained=True) # CIFAR10 pretrained!
 
+	if args.cuda:
+		net.cuda()
+
 	net.eval()
 
 	test_iter = iter(test_loader)
-	test_len = len(test_loader.dataset)
+	print(len(test_loader.dataset))
+	test_len = len(test_loader.dataset)//250
 	correct = 0
 	for i in range(test_len):
 		with torch.no_grad():
 			img, label = next(test_iter)
+			img = img.cuda()
 			output = net(img + v) # Use perturbed image!
 			_, predicted = torch.max(output, 1)
-			if predicted==label:
-				correct+=1
+			correct += (predicted==label).sum().item()
+				
 
 	print("Network accuracy on perturbed test data:", 100 * correct/total)
 

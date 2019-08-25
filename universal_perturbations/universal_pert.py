@@ -16,7 +16,8 @@ def project_norm(v, norm_size, p_value):
 	if p_value==2:
 		norm = v * min(1, norm_size/np.linalg.norm(v.flatten(1)))	# v is a what?
 	elif p_value==np.inf:
-		v = np.sign(v) * np.minimum(abs(v), norm_size)
+		#v = np.sign(v) * np.minimum(abs(v), torch.tensor(norm_size))
+		v = torch.sign(v) * torch.min(abs(v), torch.tensor(norm_size).cuda())
 	else:
 		raise ValueError("Projection unavailable for given norm value.")
 
@@ -40,28 +41,31 @@ def get_fooling_rate(val_loader, classifier ,perturbation):
 	v = perturbation
 	val_iter = iter(val_loader)
 	fooled = 0
-	total = len(val_loader.dataset)
+	total = 20
 	print("Validation data length:", total)
 	with torch.no_grad():
 		for i in range(total):
 			data = next(val_iter)
 			img, label = data
+			img = img.cuda()
+
 			output = classifier(img)
 			_, true_predicted = torch.max(output.data, 1)
-			output_pertubed = classifier(img+perturbation)
-			_, pert_predicted = torch.max(output.data, 1)
 
-			if true_predicted!=pert_predicted:
-				fooled+=1
+			output_pertubed = classifier(img + v)
+			_, pert_predicted = torch.max(output_pertubed.data, 1)
 
-		print("Fooling rate on validation set", 100 * fooled/total, "\n")
-		input()
+			#print(true_predicted, pert_predicted)
 
-	return fooled/total
+			fooled += (true_predicted != pert_predicted).sum().item()
 
-def get_univ_pert(	train_loader, val_loader, classifier, delta=0.2, 
-					max_iter=np.inf, norm_size=0.05, p_value=np.inf, 
-					num_classes=10, overshoot=0.002, max_iter_deepfool=10, cuda):
+		print("Fooling rate on validation set", fooled/5000, fooled)
+
+	return fooled/5000
+
+def get_univ_pert(	train_loader, val_loader, classifier, is_cuda, delta=0.15, 
+					max_iter=np.inf, norm_size=0.1, p_value=np.inf, 
+					num_classes=10, overshoot=0.02, max_iter_deepfool=20):
 	
 	"""
 	Returns universal perturbation vector.
@@ -107,23 +111,38 @@ def get_univ_pert(	train_loader, val_loader, classifier, delta=0.2,
 	#np_train_data = tensor2numpy(train_data)
 	train_size  = 45000
 	train_iter = iter(train_loader)
-	while fooling_rate<1-delta and total_steps<max_iter:
+	while fooling_rate < 1-delta and total_steps < max_iter:
 		# Shuffle data!	
+		if total_steps==train_size:
+			train_iter = iter(train_loader)
+
 		print("Total passes:", total_steps)	
 		for i in range(train_size):
 			curr_img, label = next(train_iter)
-			if cuda:
-				curr_img.cuda()
-			if np.argmax(classifier(curr_img).detach().numpy().flatten()) == np.argmax(classifier(curr_img + v).detach().numpy().flatten()):
+			if is_cuda:
+				curr_img = curr_img.cuda()
+			if np.argmax(classifier(curr_img).cpu().detach().numpy().flatten()) == np.argmax(classifier(curr_img + v).cpu().detach().numpy().flatten()):
 				"""
 				Get incremental perturbation delta_vi for image i
 				"""
-				print("images read", i+1)
-				delta_vi, d_iter, _, _, _ = deepfool(curr_img+v, curr_img, classifier, num_classes=num_classes, 
+				#print("images read", i+1, "\n")
+				#print(curr_img)
+				#input()
+				delta_vi, d_iter, _, _ = deepfool(curr_img+v, curr_img, classifier, num_classes=num_classes, 
 												overshoot=overshoot, max_iter = max_iter_deepfool)
+
+				#print("iters needed:", d_iter)
 				if d_iter < max_iter_deepfool:
 					v += delta_vi
 					v = project_norm(v, norm_size, p_value)
+
+			if (i+1)%1500 == 0:
+				fooling_rate = get_fooling_rate(val_loader, classifier, v)
+				if fooling_rate >= 1 - delta:
+					break
+				else:
+					print("processed:", i+1)
+					print("perturbation", v, v.size(), "\n")
 
 		total_steps+=1
 		fooling_rate = get_fooling_rate(val_loader, classifier, v)
