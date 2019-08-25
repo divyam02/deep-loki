@@ -43,7 +43,7 @@ def side_plot(og_img, pert_img, label, k_i):
 	ax[1].set_title(classes[k_i])
 	plt.show()
 
-def deepfool(img, original_image, classifier, num_classes=10, overshoot=0.02, max_iter=50):
+def deepfool(img, original_image, classifier, num_classes=10, overshoot=0.002, max_iter=50):
 	"""
 	@img: 
 		Either 1xCxHxW or CxHxW.
@@ -75,8 +75,6 @@ def deepfool(img, original_image, classifier, num_classes=10, overshoot=0.02, ma
 	while k_i==label and loop_i < max_iter:
 		pert = np.inf
 		fs[0, I[0]].backward(retain_graph=True)
-		print(fs[0, I[0]])
-		input()
 		og_grad = x.grad.data.numpy().copy()
 
 		for k in range(1, num_classes):
@@ -100,8 +98,9 @@ def deepfool(img, original_image, classifier, num_classes=10, overshoot=0.02, ma
 		fs = classifier.forward(x)
 		k_i = np.argmax(fs.data.numpy().flatten())
 
-		if k_i!=label:
-			side_plot(original_image, pert_img, label, k_i)
+		#if k_i!=label:
+		#	side_plot(original_image, pert_img, label, k_i)
+
 		loop_i += 1
 
 	return (1+overshoot) * torch.from_numpy(r_total), loop_i, label, k_i, pert_img

@@ -89,10 +89,6 @@ if __name__ == '__main__':
 	test_loader = torch.utils.data.DataLoader(test_data, batch_size=1,
 											shuffle=False)
 
-	print(len(train_loader.dataset), len(test_loader.dataset), len(val_loader.dataset))
-	input()
-
-
 	if args.net=="resnet50":
 		net = resnet50(pretrained=True) # CIFAR10 pretrained!
 
@@ -101,12 +97,15 @@ if __name__ == '__main__':
 
 	net.eval()
 
+	if args.cuda:
+		net.cuda()
+
 	pert_file = '../utils/perturbations/universal_pert.npy'
 
 	if os.path.isfile(pert_file):
 		v = torch.from_numpy(np.load(pert_file)[0])
 	else:
-		v = get_univ_pert(train_loader, val_loader, net)
+		v = get_univ_pert(train_loader, val_loader, net, args.cuda)
 		np.save('../utils/perturbations/universal_pert.npy', v.detach().numpy())
 
 	

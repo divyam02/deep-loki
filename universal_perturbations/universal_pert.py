@@ -59,9 +59,9 @@ def get_fooling_rate(val_loader, classifier ,perturbation):
 
 	return fooled/total
 
-def get_univ_pert(	train_loader, val_loader, classifier, delta=0.1, 
-					max_iter=np.inf, norm_size=10, p_value=np.inf, 
-					num_classes=10, overshoot=0.02, max_iter_deepfool=10):
+def get_univ_pert(	train_loader, val_loader, classifier, delta=0.2, 
+					max_iter=np.inf, norm_size=0.05, p_value=np.inf, 
+					num_classes=10, overshoot=0.002, max_iter_deepfool=10, cuda):
 	
 	"""
 	Returns universal perturbation vector.
@@ -112,7 +112,8 @@ def get_univ_pert(	train_loader, val_loader, classifier, delta=0.1,
 		print("Total passes:", total_steps)	
 		for i in range(train_size):
 			curr_img, label = next(train_iter)
-
+			if cuda:
+				curr_img.cuda()
 			if np.argmax(classifier(curr_img).detach().numpy().flatten()) == np.argmax(classifier(curr_img + v).detach().numpy().flatten()):
 				"""
 				Get incremental perturbation delta_vi for image i
@@ -126,5 +127,7 @@ def get_univ_pert(	train_loader, val_loader, classifier, delta=0.1,
 
 		total_steps+=1
 		fooling_rate = get_fooling_rate(val_loader, classifier, v)
+
+	side_plot(curr_img, curr_img+v, 0, 0)
 
 	return v
