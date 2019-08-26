@@ -100,10 +100,11 @@ if __name__ == '__main__':
 	if args.cuda:
 		net.cuda()
 
-	pert_file = '../utils/perturbations/universal_pert.npy'
+	pert_file = 'pert_univ.npy'
 
 	if os.path.isfile(pert_file):
-		v = torch.from_numpy(np.load(pert_file)[0])
+		v = torch.from_numpy(np.load(pert_file)[0]).cuda()
+		print("Found perturbation file! Using this...")
 	else:
 		v = get_univ_pert(train_loader, val_loader, net, args.cuda)
 		np.save('pert_univ', v.detach().cpu().numpy())
@@ -124,11 +125,12 @@ if __name__ == '__main__':
 	test_iter = iter(test_loader)
 	print(len(test_loader.dataset))
 	test_len = len(test_loader.dataset)//250
+	total = len(test_loader.dataset)
 	correct = 0
 	for i in range(test_len):
 		with torch.no_grad():
 			img, label = next(test_iter)
-			img = img.cuda()
+			img, label = img.cuda(), label.cuda()
 			output = net(img + v) # Use perturbed image!
 			_, predicted = torch.max(output, 1)
 			correct += (predicted==label).sum().item()

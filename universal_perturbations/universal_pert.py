@@ -128,7 +128,7 @@ def get_univ_pert(	train_loader, val_loader, classifier, is_cuda, delta=0.15,
 				#print("images read", i+1, "\n")
 				#print(curr_img)
 				#input()
-				delta_vi, d_iter, _, _ = deepfool(curr_img+v, curr_img, classifier, num_classes=num_classes, 
+				delta_vi, d_iter, new_label, true_label = deepfool(curr_img+v, curr_img, classifier, num_classes=num_classes, 
 												overshoot=overshoot, max_iter = max_iter_deepfool)
 
 				#print("iters needed:", d_iter)
@@ -147,6 +147,6 @@ def get_univ_pert(	train_loader, val_loader, classifier, is_cuda, delta=0.15,
 		total_steps+=1
 		fooling_rate = get_fooling_rate(val_loader, classifier, v)
 
-	side_plot(curr_img, curr_img+v, 0, 0)
+	side_plot(curr_img, curr_img+v, new_label, true_label)
 
 	return v
