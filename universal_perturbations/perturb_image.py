@@ -87,12 +87,14 @@ if __name__ == '__main__':
 	val_loader = torch.utils.data.DataLoader(all_data, batch_size=250,
 												sampler=val_sampler)
 	test_loader = torch.utils.data.DataLoader(test_data, batch_size=250,
-											shuffle=False)
+											shuffle=True)
 
 	if args.net=="resnet50":
+		print("Using ResNet-50")
 		net = resnet50(pretrained=True) # CIFAR10 pretrained!
 
 	elif args.net=="densenet121":
+		print("Using DenseNet-121")
 		net = densenet121(pretrained=True) # CIFAR10 pretrained!
 
 	net.eval()
@@ -136,7 +138,9 @@ if __name__ == '__main__':
 			correct += (predicted==label).sum().item()
 				
 
-	print("Network accuracy on perturbed test data:", 100 * correct/total)
+	print("Network accuracy on perturbed test data:", correct/total)
+
+	side_plot(img[0], img[0]+v, label[0], predicted[0])
 
 	"""
 	train_iter = iter(train_loader)
