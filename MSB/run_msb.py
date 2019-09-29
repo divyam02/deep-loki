@@ -7,7 +7,6 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import argparse
-from runutils import *
 import sys
 from utils.models import *
 from msb import *
@@ -60,8 +59,8 @@ def side_plot(og_img, pert_img, label, k_i, i):
 	classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-	np.save('img_'+str(i), og_img.data.cpu().numpy())
-	np.save('adv_'+str(i), pert_img.data.cpu().numpy())
+	# np.save('img_'+str(i), og_img.data.cpu().numpy())
+	np.save('adv_'+str(label), pert_img.data.cpu().numpy())
 
 	#og_img = inv_transform(og_img)
 	og_img[0][0] *= 0.2023
@@ -121,7 +120,7 @@ def parse_args():
 
 	# Take MSB fraction from user... 
 	parser.add_argument('--fraction', dest='fraction',
-						type=float, default=0.2)
+						type=float, default=0.1)
 
 	args = parser.parse_args()
 	return args
@@ -182,21 +181,36 @@ if __name__ == '__main__':
 	if args.cuda:
 		net.cuda()
 
-	mean = [0.4914, 0.4822, 0.4465]
-	std = [0.2023, 0.1994, 0.2010]
-	inputs_box = (min((0 - m) / s for m, s in zip(mean, std)), 
-				  max((1 - m) / s for m, s in zip(mean, std)))
-
-	adversary = L2Adversary(targeted=True, confidence=0.0,
-							search_steps=10, box=inputs_box,
-							optimizer_lr=5e-4)
-
 	test_iter = iter(test_loader)
 	print(len(test_loader.dataset))
-	test_len = len(test_loader.dataset)//100
-	total = len(test_loader.dataset)//100
+	test_len = len(test_loader.dataset)
+	total = len(test_loader.dataset)
 	correct = 0
+	"""
+	for file in os.listdir('./examples'):
+		img = np.load('./examples/'+file)
+		img = torch.from_numpy(img)
+		label = torch.tensor([int(file[-5])])	
 
+		# img, label = next(test_iter)
+		# img, label = img.cuda(), label.cuda()
+
+		# print(img, img.size(), label)
+		# input("continue?")
+
+		target = 9
+		if label==9:
+			target = 0
+		pert_img = add_msb_noise(net, img, args.fraction, )
+		output = net(pert_img)
+		_, predicted = torch.max(output, 1)
+		print("Label:", label, "Pert Predicted:", predicted, "Iter:", 0)
+		# correct+=(predicted==label).sum().item()
+		# if i%25==0:
+		side_plot(img, pert_img, label, predicted, 0)
+		# print("Network accuracy on perturbed test data:", correct/(i+1))
+
+	"""
 	for i in range(test_len):
 		img, label = next(test_iter)
 		# if choice_imgs[label]==1:
@@ -217,7 +231,8 @@ if __name__ == '__main__':
 		_, predicted = torch.max(output, 1)
 
 			# preds.append(predicted)
-		print("Label:", label, "Real Predicted", pred_real, "Pert Predicted:", predicted, "Iter:", i)
+		if i%250==0:
+			print("Label:", label, "Real Predicted", pred_real, "Pert Predicted:", predicted, "Iter:", i)
 		correct += (predicted==pred_real).sum().item()
 
 		# save_image(adversarial_examples[0], 'adv_label_'+str(label)+'.jpg')
@@ -226,7 +241,7 @@ if __name__ == '__main__':
 		# print(type(adversarial_examples))
 		# side_plot(img, adversarial_examples, label, int(attack_targets.item()))
 		# input("continu?")
-		if i%25==0:
+		if i%2000==0:
 			side_plot(img, adversarial_examples, pred_real, predicted, label.data)
 			print("Network accuracy on perturbed test data:", correct/(i+1))
 
@@ -236,3 +251,4 @@ if __name__ == '__main__':
 	# big_plot(img, adversarial_examples, pred_real, preds, 3000)
 
 	print("Network accuracy on perturbed test data:", correct/total)
+	
