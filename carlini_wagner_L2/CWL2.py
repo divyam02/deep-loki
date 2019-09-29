@@ -11,6 +11,8 @@ from cw import *
 from runutils import *
 import sys
 from utils.models import *
+from torchvision.utils import save_image
+import cv2
 
 def big_plot(og_img, pert_imgs, label, k_is, i):
 	"""
@@ -58,6 +60,9 @@ def side_plot(og_img, pert_img, label, k_i, i):
 	classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
+	np.save('img_'+str(i), og_img.data.cpu().numpy())
+	np.save('adv_'+str(i), pert_img.data.cpu().numpy())
+
 	#og_img = inv_transform(og_img)
 	og_img[0][0] *= 0.2023
 	og_img[0][1] *= 0.1994
@@ -74,6 +79,8 @@ def side_plot(og_img, pert_img, label, k_i, i):
 	pert_img[0][2] += 0.4465
 
 	#pert_img = inv_transform(pert_img)
+	# cv2.imwrite('img_'+str(i)+'.jpg', cv2.cvtColor(og_img[0].data.cpu().numpy(), cv2.COLOR_RGB2BGR))
+	# cv2.imwrite('adv_'+str(i)+'.jpg', cv2.cvtColor(pert_img[0].data.cpu().numpy(), cv2.COLOR_RGB2BGR))
 
 	ax[0].imshow(og_img.data.cpu().squeeze().permute(1, 2, 0))
 	ax[1].imshow(pert_img.data.cpu().squeeze().permute(1, 2, 0))
@@ -187,8 +194,17 @@ if __name__ == '__main__':
 	correct = 0
 	# adversarial_examples = list()
 	# preds = list()
+
+	choice_imgs =  [0]*10
+
 	for i in range(test_len):
 		img, label = next(test_iter)
+		if choice_imgs[label]==1:
+			continue
+
+		choice_imgs[label] = 1
+		print("label choice:", label)
+		# save_image(img[0], 'img_label_'+str(label)+'.jpg')
 		img, label = img.cuda(), label.cuda()
 		# for j in range(10):
 		attack_targets = torch.ones(img.size(0)).cuda() * 9
@@ -204,15 +220,20 @@ if __name__ == '__main__':
 		print("Label:", label, "Real Predicted", pred_real, "Pert Predicted:", predicted, "Iter:", i)
 		correct += (predicted==pred_real).sum().item()
 
+		# save_image(adversarial_examples[0], 'adv_label_'+str(label)+'.jpg')
+
 		# print(adversarial_examples.shape)
 		# print(type(adversarial_examples))
 		# side_plot(img, adversarial_examples, label, int(attack_targets.item()))
 		# input("continu?")
-		if i%25==0:
-			side_plot(img, adversarial_examples, pred_real, predicted, i)
-			print("Network accuracy on perturbed test data:", correct/(i+1))
+		# if i%25==0:
+		side_plot(img, adversarial_examples, pred_real, predicted, label.data)
+		print("Network accuracy on perturbed test data:", correct/(i+1))
 
-	big_plot(img, adversarial_examples, pred_real, preds, 3000)
+		if sum(choice_imgs)==10:
+			break
 
-	print("Network accuracy on perturbed test data:", correct/total)
+	# big_plot(img, adversarial_examples, pred_real, preds, 3000)
+
+	# print("Network accuracy on perturbed test data:", correct/total)
 

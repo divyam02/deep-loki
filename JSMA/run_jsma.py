@@ -11,6 +11,7 @@ from jsma import *
 from runutils import *
 import sys
 from utils.models import *
+import cv2
 
 def big_plot(og_img, pert_imgs, label, k_is, i):
 	"""
@@ -57,6 +58,10 @@ def side_plot(og_img, pert_img, label, k_i, i):
 	classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
+
+	# np.save('img_'+str(i), og_img.data.cpu().numpy())
+	np.save('adv_'+str(label), pert_img.data.cpu().numpy())
+
 	#og_img = inv_transform(og_img)
 	og_img[0][0] *= 0.2023
 	og_img[0][1] *= 0.1994
@@ -73,12 +78,13 @@ def side_plot(og_img, pert_img, label, k_i, i):
 	pert_img[0][2] += 0.4465
 
 	#pert_img = inv_transform(pert_img)
+	# cv2.imwrite('works_'+str(i)+'.jpg', cv2.cvtColor(pert_img, cv2.RGB2BGR))
 
 	ax[0].imshow(og_img.data.cpu().squeeze().permute(1, 2, 0))
 	ax[1].imshow(pert_img.data.cpu().squeeze().permute(1, 2, 0))
 	ax[0].set_title(classes[label])
 	ax[1].set_title(classes[k_i])
-	plt.savefig('works_'+str(i)+'.png')
+	# plt.savefig('works_'+str(i)+'.png')
 
 def parse_args():
 	"""
@@ -179,19 +185,30 @@ if __name__ == '__main__':
 	total = len(test_loader.dataset)
 	correct = 0
 
-	for i in range(test_len):
-		img, label = next(test_iter)
-		img, label = img.cuda(), label.cuda()
+	# for i in range(test_len):
+
+	# import cv2
+	for file in os.listdir('./examples'):
+		img = np.load('./examples/'+file)
+		img = torch.from_numpy(img)
+		label = torch.tensor([int(file[-5])])	
+
+		# img, label = next(test_iter)
+		# img, label = img.cuda(), label.cuda()
+
+		# print(img, img.size(), label)
+		# input("continue?")
+
 		target = 9
 		if label==9:
 			target = 0
 		pert_img = perturb_img(img, target, net)
 		output = net(pert_img)
 		_, predicted = torch.max(output, 1)
-		print("Label:", label, "Pert Predicted:", predicted, "Iter:", i)
-		correct+=(predicted==label).sum().item()
+		# print("Label:", label, "Pert Predicted:", predicted, "Iter:", 0)
+		# correct+=(predicted==label).sum().item()
 		# if i%25==0:
-		side_plot(img, pert_img, label, predicted, i)
-		print("Network accuracy on perturbed test data:", correct/(i+1))
+		side_plot(img, pert_img, label, predicted, 0)
+		# print("Network accuracy on perturbed test data:", correct/(i+1))
 
-	print("Network accuracy on perturbed test data:", correct/total)
+	# print("Network accuracy on perturbed test data:", correct/total)
