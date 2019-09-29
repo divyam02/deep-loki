@@ -186,7 +186,7 @@ if __name__ == '__main__':
 	test_len = len(test_loader.dataset)
 	total = len(test_loader.dataset)
 	correct = 0
-	"""
+
 	for file in os.listdir('./examples'):
 		img = np.load('./examples/'+file)
 		img = torch.from_numpy(img)
@@ -251,4 +251,4 @@ if __name__ == '__main__':
 	# big_plot(img, adversarial_examples, pred_real, preds, 3000)
 
 	print("Network accuracy on perturbed test data:", correct/total)
-	
+	"""
