@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+import torch.optim as optim
 import numpy as np
 
 def get_true_img(img):
@@ -30,49 +31,56 @@ def process_img(img):
 	return img
 
 
-def perturb_img(img, label, target, model, step_size=0.3, 
+def perturb_img(img, label, target, model, step_size=0.5, 
 				max_iters=100, epsilon=0.03125, norm='inf'):
 	"""
 	Perturb image using Projected Gradient Descent...
 	@Input: Preprocessed images (1xCxHxW)
 	"""
+	optimizer = optim.Adam(model.parameters(), lr=1e-4)
 	loss_fn = torch.nn.CrossEntropyLoss()
-	true_img = get_true_img(img.clone().detach())
-	adv = img.clone().cuda().requires_grad_()
+	true_img = get_true_img(img.clone().detach().requires_grad_(True).cuda())
+	adv = img.clone().detach().requires_grad_(True).cuda()
 	targeted = label==target
 
-	for step in range(step_size):
-		temp_adv = adv.clone().cuda().requires_grad_()
-		pred = model(temp_adv)
+	for step in range(max_iters):
+		optimizer.zero_grad()
+		# temp_adv = adv.clone().detach().requires_grad_(True).cuda()
+		pred = model(adv)
 		loss = loss_fn(pred, target)
 		loss.backward()
-
-		if (step+1)%10==0:
-			print("iteration:", step+1)
-
-			if pred==target:
-				print("Success!")
-				break
+		optimizer.step()
 
 		with torch.no_grad():
-			if norm is 'inf':
-				grads = step_size * temp_adv.grad.sign()
+			# if norm is 'inf':
+			# 	grads = step_size * temp_adv.grad.sign()
 				
-			if targeted:
-				adv -= grads
-			else:
-				adv += grads
+			# if targeted:
+			# 	adv -= grads
+			# else:
+			# 	adv += grads
 
 			if norm is 'inf':
-				# Projection on to the l-inf norm ball.
-				# We can directly clip errant values...
-				# or we can scale it down. As far as
-				# the paper goes, clipping is fine.
-				adv = get_true_img(adv)
-				adv = adv.clamp(true_img-epsilon, true_img+epsilon)
-				adv = adv.clamp(0, 1)
-				adv = process_img(adv)
+				# Projection on to the l-inf norm ball. We can directly clip errant values...
+				# or we can scale it down. As far as the paper goes, clipping is fine.
+				true_adv = get_true_img(adv)
+
+				# adv = adv.clamp(true_img-epsilon, true_img+epsilon)
+				true_adv = torch.max(torch.min(true_adv, true_img+epsilon), 
+								true_img-epsilon)
+				true_adv = true_adv.clamp(0, 1)
+				preprocessed_true_adv = process_img(true_adv)
+
+				pred = model(preprocessed_true_adv)
+
+				# print("iteration:", step+1, "Loss:", loss)
+				_, temp = torch.max(pred, 1)
+				if temp==target:
+					# print("Success!")
+					break
 			else:
 				raise NotImplementedError
 
-	return adv
+			# if (step+1)%10==0:
+
+	return preprocessed_true_adv

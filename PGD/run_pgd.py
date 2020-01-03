@@ -8,12 +8,12 @@ import os
 import matplotlib.pyplot as plt
 import argparse
 from pgd import *
-from runutils import *
+# from runutils import *
 import sys
 from utils.models import *
 import cv2
 
-def big_plot(og_img, pert_imgs, label, k_is, i):
+def big_plot(og_img, pert_imgs, label, k_is, QW):
 	"""
 	Quick visual debug!
 	"""
@@ -47,20 +47,19 @@ def big_plot(og_img, pert_imgs, label, k_is, i):
 
 		ax[i+1].imshow(pert_img.data.cpu().squeeze().permute(1, 2, 0))
 		ax[i+1].set_title(classes[k_i])
-	plt.savefig('works_'+str(i)+'.png')
+	plt.savefig('works_'+str(QW)+'.png')
 
 def side_plot(og_img, pert_img, label, k_i, i):
 	"""
 	Quick visual debug!
 	"""
-	_, ax = plt.subplots(2)
 
 	classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 
 	# np.save('img_'+str(i), og_img.data.cpu().numpy())
-	np.save('adv_'+str(label), pert_img.data.cpu().numpy())
+	np.save('./npy_files/adv_'+str(label), pert_img.data.cpu().numpy())
 
 	#og_img = inv_transform(og_img)
 	og_img[0][0] *= 0.2023
@@ -77,14 +76,29 @@ def side_plot(og_img, pert_img, label, k_i, i):
 	pert_img[0][1] += 0.4822
 	pert_img[0][2] += 0.4465
 
+	_, ax = plt.subplots(nrows=1, ncols=3)
+
 	#pert_img = inv_transform(pert_img)
 	# cv2.imwrite('works_'+str(i)+'.jpg', cv2.cvtColor(pert_img, cv2.RGB2BGR))
 
 	ax[0].imshow(og_img.data.cpu().squeeze().permute(1, 2, 0))
 	ax[1].imshow(pert_img.data.cpu().squeeze().permute(1, 2, 0))
+	ax[2].imshow((abs(og_img - pert_img)*10).data.cpu().squeeze().permute(1, 2, 0))
+
 	ax[0].set_title(classes[label])
+	ax[0].set_yticks([], [])
+	ax[0].set_xticks([], [])
+
 	ax[1].set_title(classes[k_i])
-	# plt.savefig('works_'+str(i)+'.png')
+	ax[1].set_yticks([], [])
+	ax[1].set_xticks([], [])
+
+	ax[2].set_title('noise')
+	ax[2].set_yticks([], [])
+	ax[2].set_xticks([], [])
+
+
+	plt.savefig('./imgs/works_'+str(i)+'.png')
 
 def parse_args():
 	"""
@@ -176,9 +190,6 @@ if __name__ == '__main__':
 	if args.cuda:
 		net.cuda()
 
-	mean = [0.4914, 0.4822, 0.4465]
-	std = [0.2023, 0.1994, 0.2010]
-
 	test_iter = iter(test_loader)
 	print(len(test_loader.dataset))
 	test_len = len(test_loader.dataset)
@@ -186,8 +197,6 @@ if __name__ == '__main__':
 	correct = 0
 
 	for i in range(test_len):
-
-	# import cv2
 	# for file in os.listdir('./examples'):
 		# img = np.load('./examples/'+file)
 		# img = torch.from_numpy(img)
@@ -195,18 +204,23 @@ if __name__ == '__main__':
 
 		img, label = next(test_iter)
 		img, label = img.cuda(), label.cuda()
+		target = torch.tensor([9]).cuda()
 
-		target = 9
 		if label==9:
-			target = 0
+			target = torch.tensor([0]).cuda()
 
 		pert_img = perturb_img(img, label, target, net)
 		output = net(pert_img)
 		_, predicted = torch.max(output, 1)
-		print("Label:", label, "Predicted:", predicted, "Iter:", i)
+		# print("Label:", label, "Predicted:", predicted, "Iter:", i)
 		correct+=(predicted==label).sum().item()
 		if i%25==0:
 			side_plot(img, pert_img, label, predicted, i)
 			print("Network accuracy on perturbed test data:", correct/(i+1))
+			print("Processed:", (i+1))
+			# print("img:", img)
+			# print("pert_img:", pert_img)
+			# print("Same values?:", torch.equal(img, pert_img))
+			# input('continue?')
 
 	# print("Network accuracy on perturbed test data:", correct/total)
