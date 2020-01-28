@@ -213,8 +213,8 @@ if __name__ == '__main__':
 		if label==9:
 			target = torch.tensor([0]).cuda()
 
-		# pert_img = perturb_img(img, label, target, net)
-		pert_img = perturb_img(img)
+		pert_img = perturb_img(img, label, target, net)
+		# pert_img = perturb_img(img)
 		
 		# output = net(pert_img)
 		# _, predicted = torch.max(output, 1)
