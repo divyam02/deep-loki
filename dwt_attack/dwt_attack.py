@@ -7,7 +7,7 @@ import pywt.data
 from torchvision import transforms as transforms
 import torch.optim as optim
 
-def perturb_img(img, label, target, model, alpha=0.1, max_iters=100):
+def perturb_img(img, label, target, model, alpha=1e-3, max_iters=100):
 	"""
 	Assume learned filters are available.
 	"""
@@ -19,7 +19,7 @@ def perturb_img(img, label, target, model, alpha=0.1, max_iters=100):
 	# HL = HL.clone().requires_grad_().cuda()
 	# HH = HH .clone().requires_grad_().cuda()
 
-	LL, Y = get_dwt_2d(img)
+	LL, Y = get_dwt_2d(postprocess(img.clone().detach()))
 	LL = LL.clone().requires_grad_().cuda()
 	Y[0] = Y[0].clone().requires_grad_().cuda()
 	Y[1] = Y[1].clone().requires_grad_().cuda()
@@ -38,21 +38,23 @@ def perturb_img(img, label, target, model, alpha=0.1, max_iters=100):
 		adv = preprocess(clip_pixels(img, adv))
 		optimizer.zero_grad()
 		# print(adv)
-		print('step', step)
+		print('step', step+1)
 		pred = model(adv)
-		loss = cls_loss_fn(pred, target) + alpha*dst_loss_fn(torch.flatten(adv, 1, -1), 
-															torch.flatten(img, 1, -1))**2
+		loss = cls_loss_fn(pred, target) + alpha*(dst_loss_fn(torch.flatten(adv, 1, -1), 
+															torch.flatten(img, 1, -1))**2)
+		# loss = cls_loss_fn(pred, target)
 		loss.backward()
 		optimizer.step()
 
 		with torch.no_grad():
-			adv = clip_pixels(img, adv)
+			adv = get_inv_dwt_2d(LL, Y)
+			adv = preprocess(clip_pixels(img, adv))
 			pred = model(adv)
 			if torch.max(pred, 1)[1]==target:
 				print('Success!')
 				break
 
-	return postprocess(adv)
+	return adv
 
 def preprocess(img):
 	"""
@@ -88,15 +90,15 @@ def postprocess(img):
 
 	return img
 
-def clip_pixels(img, adv, epsilon=1e-1):
+def clip_pixels(img, adv, epsilon=0.0325):
 	"""
 	Project img into 0-255 pixel range, based on norm.
 	"""
-	# raise NotImplementedErro
+	# raise NotImplementedError
 	# adv = adv.clamp(true_img-epsilon, true_img+epsilon)
 	true_img = postprocess(img.clone().detach())
-	true_adv = torch.max(torch.min(adv, true_img+epsilon), true_img-epsilon)
-	true_adv = true_adv.clamp(0, 1)
+	# true_adv = torch.max(torch.min(adv, true_img+epsilon), true_img-epsilon)
+	true_adv = adv.clamp(0, 1)
 	return true_adv
 
 def band_pass_filter_combine():
