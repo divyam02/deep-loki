@@ -83,8 +83,8 @@ def side_plot(og_img, pert_img, label, k_i, i):
 
 	ax[0].imshow(og_img.data.cpu().squeeze().permute(1, 2, 0))
 	ax[1].imshow(pert_img.data.cpu().squeeze().permute(1, 2, 0))
-	ax[2].imshow((abs(og_img - pert_img)*10).data.cpu().squeeze().permute(1, 2, 0))
-	ax[3].imshow((abs(og_img - pert_img)*100).data.cpu().squeeze().permute(1, 2, 0))
+	ax[2].imshow((torch.abs(og_img - pert_img)*1e7).data.cpu().squeeze().permute(1, 2, 0))
+	ax[3].imshow((torch.abs(og_img - pert_img)*1e8).data.cpu().squeeze().permute(1, 2, 0))
 
 	ax[0].set_title(classes[label])
 	ax[0].set_yticks([], [])
@@ -105,6 +105,8 @@ def side_plot(og_img, pert_img, label, k_i, i):
 
 	plt.savefig('./imgs/works_'+str(i)+'.png')
 	plt.close()
+
+	print('Noise is present?', torch.abs(og_img - pert_img))
 
 def parse_args():
 	"""
@@ -145,7 +147,8 @@ if __name__ == '__main__':
 
 	if args.dataset=='cifar10':	
 		# Load all this from utils folder!
-		morph = transforms.Compose([transforms.ToTensor()])
+		morph = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], 
+									std=[0.2023, 0.1994, 0.2010])])
 		all_data = datasets.CIFAR10(root = '../data/', transform=morph, train=True, download=True)
 		test_data = datasets.CIFAR10(root='../data/', transform=morph, train=False, download=True)
 
@@ -200,11 +203,7 @@ if __name__ == '__main__':
 	total = len(test_loader.dataset)
 	correct = 0
 
-	for i in range(0, 1):
-	# for file in os.listdir('./examples'):
-		# img = np.load('./examples/'+file)
-		# img = torch.from_numpy(img)
-		# label = torch.tensor([int(file[-5])])	
+	for i in range(test_len):
 
 		img, label = next(test_iter)
 		img, label = img.cuda(), label.cuda()
@@ -213,22 +212,19 @@ if __name__ == '__main__':
 		if label==9:
 			target = torch.tensor([0]).cuda()
 
-		pert_img = perturb_img(img, label, target, net)
-		# pert_img = perturb_img(img)
-		
-		# output = net(pert_img)
-		# _, predicted = torch.max(output, 1)
-		# # print("Label:", label, "Predicted:", predicted, "Iter:", i)
-		# if predicted==label:
-		# 	side_plot(img, pert_img, label, predicted, 100000+i)
-		# correct+=(predicted==label).sum().item()
-		# if i%25==0:
-		# 	side_plot(img, pert_img, label, predicted, i)
-		# 	print("Network accuracy on perturbed test data:", correct/(i+1))
-		# 	print("Processed:", (i+1))
-		# 	# print("img:", img)
-		# 	# print("pert_img:", pert_img)
-		# 	# print("Same values?:", torch.equal(img, pert_img))
-		# 	# input('continue?')
+		pert_img = perturb_img(img.clone(), label, target, net)
+		output = net(pert_img)
+		_, predicted = torch.max(output, 1)
+		print("Label:", label, "Predicted:", predicted, "Iter:", i)
+
+		correct+=(predicted==label).sum().item()
+		if i%25==0:
+			side_plot(img, pert_img, label, predicted, i)
+			print("Network accuracy on perturbed test data:", correct/(i+1))
+			print("Processed:", (i+1))
+			# print("img:", img)
+			# print("pert_img:", pert_img)
+			# print("Same values?:", torch.equal(img, pert_img))
+			# input('continue?')
 
 	# print("Network accuracy on perturbed test data:", correct/total)
