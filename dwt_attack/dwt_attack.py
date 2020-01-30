@@ -7,19 +7,15 @@ import pywt.data
 from torchvision import transforms as transforms
 import torch.optim as optim
 
-def perturb_img(img, label, target, model, alpha=1e-3, max_iters=100):
+def perturb_img(img, label, target, model, alpha=0.5, max_iters=100):
 	"""
 	Assume learned filters are available.
 	"""
-	# raise NotImplementedError
 
-	# LL, LH, HL, HH = get_dwt_2d(img)
-	# LL = LL.clone().requires_grad_().cuda()
-	# LH = LH.clone().requires_grad_().cuda()
-	# HL = HL.clone().requires_grad_().cuda()
-	# HH = HH .clone().requires_grad_().cuda()
-
+	# Perform DWT on the unnormalized image. Ensure it is done on a copy.
 	LL, Y = get_dwt_2d(postprocess(img.clone().detach()))
+
+	# Enable updating of LL, LH, HL, HH.
 	LL = LL.clone().requires_grad_().cuda()
 	Y[0] = Y[0].clone().requires_grad_().cuda()
 	Y[1] = Y[1].clone().requires_grad_().cuda()
@@ -30,22 +26,24 @@ def perturb_img(img, label, target, model, alpha=1e-3, max_iters=100):
 	cls_loss_fn = torch.nn.CrossEntropyLoss()
 	dst_loss_fn = torch.nn.PairwiseDistance()
 
-	# Y = band_pass_filter_combine()
-
 	for step in range(max_iters):
+		# Obtain unnormalized adversarial image by 
+		# using IDWT on LL, LH, HL, HH.
 		adv = get_inv_dwt_2d(LL, Y)
-		# print('pass1', adv)
-		adv = preprocess(clip_pixels(img, adv))
+
+		# Preprocess image for the network.
+		adv = preprocess(clip_pixels(adv))
 		optimizer.zero_grad()
-		# print(adv)
 		print('step', step+1)
 		pred = model(adv)
-		loss = cls_loss_fn(pred, target) + alpha*(dst_loss_fn(torch.flatten(adv, 1, -1), 
-															torch.flatten(img, 1, -1))**2)
-		# loss = cls_loss_fn(pred, target)
+
+		# Control loss tradeoffs with alpha.
+		loss = (1-alpha)*cls_loss_fn(pred, target) + (alpha)*dst_loss_fn(torch.flatten(adv, 1, -1), 
+															torch.flatten(img, 1, -1))**2
 		loss.backward()
 		optimizer.step()
 
+		# Check adversary after updating image.
 		with torch.no_grad():
 			adv = get_inv_dwt_2d(LL, Y)
 			adv = preprocess(clip_pixels(img, adv))
@@ -58,12 +56,10 @@ def perturb_img(img, label, target, model, alpha=1e-3, max_iters=100):
 
 def preprocess(img):
 	"""
-	Preprocess by normalization
+	Preprocess by normalization. 
+
+	Single image only.
 	"""
-	# raise NotImplementedError
-	# morph = transforms.Compose([transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], 
-	# 								std=[0.2023, 0.1994, 0.2010])])
-	# return morph(img)
 	img[0][0] -= 0.4914
 	img[0][1] -= 0.4822
 	img[0][2] -= 0.4465
@@ -76,11 +72,9 @@ def preprocess(img):
 def postprocess(img):
 	"""
 	Postprocess by unnormalizing
-	"""
-	# raise NotImplementedError
-	# morph = transforms.Compose([transforms.Normalize(mean=[-0.4914/0,2023, -0.4822/0.1994, -0.4465/0.2010], 
-	# 								std=[1/0.2023, 1/0.1994, 1/0.2010])]).cuda()
 
+	Single image only.
+	"""
 	img[0][0] *= 0.2023
 	img[0][1] *= 0.1994
 	img[0][2] *= 0.2010
@@ -90,22 +84,17 @@ def postprocess(img):
 
 	return img
 
-def clip_pixels(img, adv, epsilon=0.0325):
+def clip_pixels(adv):
 	"""
-	Project img into 0-255 pixel range, based on norm.
+	Project img into 0-255 pixel range, based on norm. 
+
+	Simply clamping inside the 0-1 range used in image representations of 
+	tensors for the time being.
 	"""
-	# raise NotImplementedError
-	# adv = adv.clamp(true_img-epsilon, true_img+epsilon)
-	true_img = postprocess(img.clone().detach())
+	# true_img = postprocess(img.clone().detach())
 	# true_adv = torch.max(torch.min(adv, true_img+epsilon), true_img-epsilon)
 	true_adv = adv.clamp(0, 1)
 	return true_adv
-
-def band_pass_filter_combine():
-	"""
-	Combine coarse/fine filters
-	"""
-	raise NotImplementedError
 
 def get_inv_dwt_2d(LL, Y):
 	"""
@@ -113,25 +102,23 @@ def get_inv_dwt_2d(LL, Y):
 
 	@ Attribute Y: The entire 3 stacked fine to coarse filter outputs
 	"""
-	ifm = DWTInverse(mode='zero', wave='db3').cuda()
-	# print('stack', torch.stack([LH, HL, HH], dim=2).size())
+	ifm = DWTInverse(mode='zero', wave='db3').cuda().eval()
 	return ifm((LL, Y))
 
 def get_dwt_2d(img_batch):
 	"""
 	Return img dwt.
-
-	@ Doubt: Ask about coarse/fine filters. 
-	@ Doubt: Are filters learnable parameters?
+	
+	Can probably reduce memory load by not creating a new DWT object per iter.
 	"""
-	xfm = DWTForward(J=3, mode='zero', wave='db3').cuda()
+	xfm = DWTForward(J=3, mode='zero', wave='db3').cuda().eval()
 	LL, Y = xfm(img_batch)
-	# LH, HL, HH = torch.unbind(Y[0], dim=2)
-	# return LL, LH, HL, HH
 	return LL, Y
 
 def test_code(img):
-
+	"""
+	Ignore.
+	"""
 	# original = pywt.data.camera()
 
 	titles = ['Original', 'Approximation', ' Horizontal detail',
