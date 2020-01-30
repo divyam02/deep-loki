@@ -8,46 +8,9 @@ import os
 import matplotlib.pyplot as plt
 import argparse
 from dwt_attack import *
-# from runutils import *
 import sys
 from utils.models import *
 import cv2
-
-def big_plot(og_img, pert_imgs, label, k_is, QW):
-	"""
-	Quick visual debug!
-	"""
-	_, ax = plt.subplots(nrows=10, ncols=1)
-
-	classes = ('plane', 'car', 'bird', 'cat',
-           'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
-	#og_img = inv_transform(og_img)
-	og_img[0][0] *= 0.2023
-	og_img[0][1] *= 0.1994
-	og_img[0][2] *= 0.2010
-	og_img[0][0] += 0.4914
-	og_img[0][1] += 0.4822
-	og_img[0][2] += 0.4465
-
-	#pert_img = inv_transform(pert_img)
-
-	ax[0].imshow(og_img.data.cpu().squeeze().permute(1, 2, 0))
-	ax[0].set_title(classes[label])
-
-	for i in range(len(pert_imgs)):
-		pert_img = pert_imgs[i]
-		k_i = k_is[i]
-		pert_img[0][0] *= 0.2023
-		pert_img[0][1] *= 0.1994
-		pert_img[0][2] *= 0.2010
-		pert_img[0][0] += 0.4914
-		pert_img[0][1] += 0.4822
-		pert_img[0][2] += 0.4465		
-
-		ax[i+1].imshow(pert_img.data.cpu().squeeze().permute(1, 2, 0))
-		ax[i+1].set_title(classes[k_i])
-	plt.savefig('works_'+str(QW)+'.png')
 
 def side_plot(og_img, pert_img, label, k_i, i):
 	"""
@@ -57,11 +20,8 @@ def side_plot(og_img, pert_img, label, k_i, i):
 	classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-
-	# np.save('img_'+str(i), og_img.data.cpu().numpy())
 	np.save('./npy_files/adv_'+str(label), pert_img.data.cpu().numpy())
 
-	#og_img = inv_transform(og_img)
 	og_img[0][0] *= 0.2023
 	og_img[0][1] *= 0.1994
 	og_img[0][2] *= 0.2010
@@ -78,11 +38,11 @@ def side_plot(og_img, pert_img, label, k_i, i):
 
 	_, ax = plt.subplots(nrows=1, ncols=4)
 
-	#pert_img = inv_transform(pert_img)
-	# cv2.imwrite('works_'+str(i)+'.jpg', cv2.cvtColor(pert_img, cv2.RGB2BGR))
-
 	ax[0].imshow(og_img.data.cpu().squeeze().permute(1, 2, 0))
 	ax[1].imshow(pert_img.data.cpu().squeeze().permute(1, 2, 0))
+
+	# Pixel differences are of the order of 1e-7. Current method to visualize these
+	# values. I will fix this soon.
 	ax[2].imshow((torch.abs(og_img - pert_img)*1e7).data.cpu().squeeze().permute(1, 2, 0))
 	ax[3].imshow((torch.abs(og_img - pert_img)*1e8).data.cpu().squeeze().permute(1, 2, 0))
 
@@ -106,6 +66,7 @@ def side_plot(og_img, pert_img, label, k_i, i):
 	plt.savefig('./imgs/works_'+str(i)+'.png')
 	plt.close()
 
+	# A second confirmation about the presence of noise.
 	print('Noise is present?', torch.abs(og_img - pert_img))
 
 def parse_args():
@@ -181,8 +142,10 @@ if __name__ == '__main__':
 												sampler=train_sampler)
 	val_loader = torch.utils.data.DataLoader(all_data, batch_size=250,
 												sampler=val_sampler)
+
+	# Convert to batches for faster testing.
 	test_loader = torch.utils.data.DataLoader(test_data, batch_size=1,
-											shuffle=True)
+											shuffle=False)
 
 	if args.net=="resnet50":
 		print("Using ResNet-50")
@@ -207,8 +170,11 @@ if __name__ == '__main__':
 
 		img, label = next(test_iter)
 		img, label = img.cuda(), label.cuda()
-		target = torch.tensor([9]).cuda()
 
+		# Arbitrarily kept 'truck' label as the target class.
+		# All 'truck' catergory images are to misclassified as
+		# the 'plane' catergory (arbitrary choice). 
+		target = torch.tensor([9]).cuda()
 		if label==9:
 			target = torch.tensor([0]).cuda()
 
@@ -222,9 +188,5 @@ if __name__ == '__main__':
 			side_plot(img, pert_img, label, predicted, i)
 			print("Network accuracy on perturbed test data:", correct/(i+1))
 			print("Processed:", (i+1))
-			# print("img:", img)
-			# print("pert_img:", pert_img)
-			# print("Same values?:", torch.equal(img, pert_img))
-			# input('continue?')
 
-	# print("Network accuracy on perturbed test data:", correct/total)
+	print("Network accuracy on perturbed test data:", correct/total)
