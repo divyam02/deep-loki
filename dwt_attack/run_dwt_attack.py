@@ -67,7 +67,7 @@ def side_plot(og_img, pert_img, label, k_i, i):
 	plt.close()
 
 	# A second confirmation about the presence of noise.
-	print('Noise is present?', torch.abs(og_img - pert_img))
+	# print('Noise is present?', torch.abs(og_img - pert_img))
 
 def parse_args():
 	"""

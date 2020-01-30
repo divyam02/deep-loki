@@ -46,7 +46,7 @@ def perturb_img(img, label, target, model, alpha=0.5, max_iters=100):
 		# Check adversary after updating image.
 		with torch.no_grad():
 			adv = get_inv_dwt_2d(LL, Y)
-			adv = preprocess(clip_pixels(img, adv))
+			adv = preprocess(clip_pixels(adv))
 			pred = model(adv)
 			if torch.max(pred, 1)[1]==target:
 				print('Success!')
