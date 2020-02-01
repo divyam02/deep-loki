@@ -11,15 +11,17 @@ def perturb_img(img, label, target, model, alpha=0.5, max_iters=100):
 	"""
 	Assume learned filters are available.
 	"""
+	ifm = DWTInverse(mode='zero', wave='db3').cuda().eval()
+	xfm = DWTForward(J=3, mode='zero', wave='db3').cuda().eval()
 
 	# Perform DWT on the unnormalized image. Ensure it is done on a copy.
-	LL, Y = get_dwt_2d(postprocess(img.clone().detach()))
+	LL, Y = get_dwt_2d(postprocess(img.clone().detach()), xfm)
 
 	# Enable updating of LL, LH, HL, HH.
-	LL = LL.clone().requires_grad_().cuda()
-	Y[0] = Y[0].clone().requires_grad_().cuda()
-	Y[1] = Y[1].clone().requires_grad_().cuda()
-	Y[2] = Y[2].clone().requires_grad_().cuda()
+	LL = LL.clone().detach().requires_grad_().cuda()
+	Y[0] = Y[0].clone().detach().requires_grad_().cuda()
+	Y[1] = Y[1].clone().detach().requires_grad_().cuda()
+	Y[2] = Y[2].clone().detach().requires_grad_().cuda()
 
 	optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
@@ -29,27 +31,26 @@ def perturb_img(img, label, target, model, alpha=0.5, max_iters=100):
 	for step in range(max_iters):
 		# Obtain unnormalized adversarial image by 
 		# using IDWT on LL, LH, HL, HH.
-		adv = get_inv_dwt_2d(LL, Y)
+		adv = get_inv_dwt_2d(LL, Y, ifm)
 
 		# Preprocess image for the network.
 		adv = preprocess(clip_pixels(adv))
 		optimizer.zero_grad()
-		print('step', step+1)
+		# print('step', step+1)
 		pred = model(adv)
 
 		# Control loss tradeoffs with alpha.
-		loss = (1-alpha)*cls_loss_fn(pred, target) + (alpha)*dst_loss_fn(torch.flatten(adv, 1, -1), 
-															torch.flatten(img, 1, -1))**2
+		loss = (1-alpha)*cls_loss_fn(pred, target) + alpha*(dst_loss_fn(torch.flatten(adv, 1, -1), torch.flatten(img, 1, -1))**2)
 		loss.backward()
 		optimizer.step()
 
 		# Check adversary after updating image.
 		with torch.no_grad():
-			adv = get_inv_dwt_2d(LL, Y)
+			adv = get_inv_dwt_2d(LL, Y, ifm)
 			adv = preprocess(clip_pixels(adv))
 			pred = model(adv)
 			if torch.max(pred, 1)[1]==target:
-				print('Success!')
+				# print('Success!')
 				break
 
 	return adv
@@ -96,22 +97,20 @@ def clip_pixels(adv):
 	true_adv = adv.clamp(0, 1)
 	return true_adv
 
-def get_inv_dwt_2d(LL, Y):
+def get_inv_dwt_2d(LL, Y, ifm):
 	"""
 	Return idwt of bands.
 
 	@ Attribute Y: The entire 3 stacked fine to coarse filter outputs
 	"""
-	ifm = DWTInverse(mode='zero', wave='db3').cuda().eval()
 	return ifm((LL, Y))
 
-def get_dwt_2d(img_batch):
+def get_dwt_2d(img_batch, xfm):
 	"""
 	Return img dwt.
 	
-	Can probably reduce memory load by not creating a new DWT object per iter.
+	Can probably improve runtimes by not creating a new DWT object per iter.
 	"""
-	xfm = DWTForward(J=3, mode='zero', wave='db3').cuda().eval()
 	LL, Y = xfm(img_batch)
 	return LL, Y
 
