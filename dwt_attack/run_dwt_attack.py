@@ -12,6 +12,8 @@ import sys
 from utils.models import *
 import cv2
 
+import logging
+
 def side_plot(og_img, pert_img, label, k_i, i):
 	"""
 	Quick visual debug!
@@ -38,13 +40,17 @@ def side_plot(og_img, pert_img, label, k_i, i):
 
 	_, ax = plt.subplots(nrows=1, ncols=4)
 
+	logger = logging.getLogger() # For removing clipping message
+	old_level = logger.level
+	logger.setLevel(100)
+
 	ax[0].imshow(og_img.data.cpu().squeeze().permute(1, 2, 0))
 	ax[1].imshow(pert_img.data.cpu().squeeze().permute(1, 2, 0))
 
 	# Pixel differences are of the order of 1e-7. Current method to visualize these
 	# values. I will fix this soon.
 	ax[2].imshow((torch.abs(og_img - pert_img)*1e7).data.cpu().squeeze().permute(1, 2, 0))
-	ax[3].imshow((torch.abs(og_img - pert_img)*1e8).data.cpu().squeeze().permute(1, 2, 0))
+	ax[3].imshow((torch.abs(og_img - pert_img)*5e7).data.cpu().squeeze().permute(1, 2, 0))
 
 	ax[0].set_title(classes[label])
 	ax[0].set_yticks([], [])
@@ -54,14 +60,15 @@ def side_plot(og_img, pert_img, label, k_i, i):
 	ax[1].set_yticks([], [])
 	ax[1].set_xticks([], [])
 
-	ax[2].set_title('10xNoise')
+	ax[2].set_title('1e7xNoise')
 	ax[2].set_yticks([], [])
 	ax[2].set_xticks([], [])
 
-	ax[3].set_title('100xNoise')
+	ax[3].set_title('5e7xNoise')
 	ax[3].set_yticks([], [])
 	ax[3].set_xticks([], [])
 
+	logger.setLevel(old_level) # Clipping message removal
 
 	plt.savefig('./imgs/works_'+str(i)+'.png')
 	plt.close()
@@ -164,7 +171,10 @@ if __name__ == '__main__':
 	print(len(test_loader.dataset))
 	test_len = len(test_loader.dataset)
 	total = len(test_loader.dataset)
-	correct = 0
+
+	miss_correct = 0 # Misclassifies as target.
+	miss_incorrect = 0 # Misclassifies, but not as target.
+	correct = 0 # Classifies correctly.
 
 	for i in range(test_len):
 
@@ -174,18 +184,24 @@ if __name__ == '__main__':
 		# Arbitrarily kept 'truck' label as the target class.
 		# All 'truck' catergory images are to misclassified as
 		# the 'plane' catergory (arbitrary choice). 
-		target = torch.tensor([9]).cuda()
-		if label==9:
-			target = torch.tensor([0]).cuda()
+		target = torch.tensor([(label+1)%10]).cuda()
+		# if label==3:
+		# 	target = torch.tensor([0]).cuda()
 
 		pert_img = perturb_img(img.clone(), label, target, net)
 		output = net(pert_img)
 		_, predicted = torch.max(output, 1)
-		print("Label:", label, "Predicted:", predicted, "Iter:", i)
+		if i%10==0:
+			print("Label:", label.data, "Predicted:", predicted.data, "Iter:", i)
+		if predicted==label: print('\nAttack Failed! Image:', i)
 
+		miss_correct+=(predicted==target).sum().item()
+		miss_incorrect+=(predicted!=target and predicted!=label).sum().item()
 		correct+=(predicted==label).sum().item()
 		if i%25==0:
 			side_plot(img, pert_img, label, predicted, i)
+			print("\nMisclassified as target:\t\t", miss_correct/(i+1))
+			print("Misclassified, but not as target:\t", miss_incorrect/(i+1))
 			print("Network accuracy on perturbed test data:", correct/(i+1))
 			print("Processed:", (i+1))
 
