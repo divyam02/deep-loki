@@ -112,6 +112,10 @@ def parse_args():
 						type=int, default=22)
 	parser.add_argument('--use_seed', dest='use_seed',
 						type=bool, default=True)
+	parser.add_argument('--attack_type', dest='attack_type',
+						type=str, default='max_error')
+	parser.add_argument('--random_restarts', dest='random_restarts',
+						type=str, default='False')
 
 	args = parser.parse_args()
 	return args
@@ -207,13 +211,15 @@ if __name__ == '__main__':
 		# Arbitrarily kept 'truck' label as the target class.
 		# All 'truck' catergory images are to misclassified as
 		# the 'plane' catergory (arbitrary choice). 
-		# target = torch.tensor([(label+1)%10]).cuda()
-		if args.dataset=='cifar10':target = (label.clone().detach() + 1)%10
-		if args.dataset=='tinyimagenet':target = (label.clone().detach() + 1)%200
-		# if label==9:
-		# 	target = torch.tensor([0]).cuda()
+		if args.attack_type=='next_class':
+			if args.dataset=='cifar10':target = (label.clone().detach() + 1)%10
+			if args.dataset=='tinyimagenet':target = (label.clone().detach() + 1)%200
+		if args.attack_type=='max_error':
+			if args.dataset=='cifar10':target = label.clone().detach()
+			if args.dataset=='tinyimagenet':target = label.clone().detach()
 
-		pert_img = perturb_img(img.clone().detach(), label, target, net)
+		pert_img = perturb_img(img.clone().detach(), label, target, net, args.attack_type, 
+								random_restarts=args.random_restarts)
 		output = net(pert_img)
 		_, predicted = torch.max(output, 1)
 		# if i%10==0:

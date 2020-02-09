@@ -7,55 +7,69 @@ import pywt.data
 from torchvision import transforms as transforms
 import torch.optim as optim
 
-def perturb_img(img, label, target, model, alpha=0.5, max_iters=100):
+def perturb_img(img, label, target, model, attack_type, alpha=0.5,
+				max_iters=100, epsilon=0.03125, random_restarts=False):
 	"""
 	Assume learned filters are available.
 	"""
 	ifm = DWTInverse(mode='zero', wave='db3').cuda().eval()
 	xfm = DWTForward(J=3, mode='zero', wave='db3').cuda().eval()
 
-	# Perform DWT on the unnormalized image. Ensure it is done on a copy.
-	LL, Y = get_dwt_2d(postprocess(img.clone().detach()), xfm)
+	if random_restarts: num_restarts = 20
+	else: num_restarts = 1
 
-	# Enable updating of LL, LH, HL, HH.
-	LL = LL.clone().detach().requires_grad_().cuda()
-	Y[0] = Y[0].clone().detach().requires_grad_().cuda()
-	Y[1] = Y[1].clone().detach().requires_grad_().cuda()
-	Y[2] = Y[2].clone().detach().requires_grad_().cuda()
+	for restart in num_restarts:
+		random_init = False
 
-	optimizer = optim.Adam(model.parameters(), lr=1e-4)
+		# Perform DWT on the unnormalized image. Ensure it is done on a copy.
+		LL, Y = get_dwt_2d(postprocess(img.clone().detach()), xfm)
 
-	cls_loss_fn = torch.nn.CrossEntropyLoss()
-	dst_loss_fn = torch.nn.PairwiseDistance()
+		# Enable updating of LL, LH, HL, HH.
+		LL = LL.clone().detach().requires_grad_().cuda()
+		Y[0] = Y[0].clone().detach().requires_grad_().cuda()
+		Y[1] = Y[1].clone().detach().requires_grad_().cuda()
+		Y[2] = Y[2].clone().detach().requires_grad_().cuda()
 
-	for step in range(max_iters):
-		# Obtain unnormalized adversarial image by 
-		# using IDWT on LL, LH, HL, HH.
-		adv = get_inv_dwt_2d(LL, Y, ifm)
+		optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-		# Preprocess image for the network.
-		adv = preprocess(clip_pixels(adv))
-		optimizer.zero_grad()
-		# print('step', step+1)
-		pred = model(adv)
+		cls_loss_fn = torch.nn.CrossEntropyLoss()
+		dst_loss_fn = torch.nn.PairwiseDistance()
 
-		# Control loss tradeoffs with alpha.
-		loss = (1-alpha)*cls_loss_fn(pred, target) + \
-		alpha*(torch.mean(dst_loss_fn(torch.flatten(adv, 1, -1), torch.flatten(img, 1, -1))**2))
-
-		loss.backward()
-		optimizer.step()
-
-		# Check adversary after updating image.
-		with torch.no_grad():
+		for step in range(max_iters):
+			# Obtain unnormalized adversarial image by 
+			# using IDWT on LL, LH, HL, HH.
 			adv = get_inv_dwt_2d(LL, Y, ifm)
+			if not random_init:
+				adv += np.random.normal(-epsilon, epsilon, adv.numpy().shape)
+				random_init = True
+
+			# Preprocess image for the network.
 			adv = preprocess(clip_pixels(adv))
+			optimizer.zero_grad()
+			# print('step', step+1)
 			pred = model(adv)
-			# print('pred', torch.max(pred, 1)[1])
-			# print('label', label)
-			if torch.all(torch.eq(torch.max(pred, 1)[1], target)):
-				# print('Success!')
-				break
+
+			# Control loss tradeoffs with alpha.
+			if attack_type=='max_error':
+				loss = -1*(1-alpha)*cls_loss_fn(pred, target) + alpha*(torch.mean(dst_loss_fn(torch.flatten(adv, 1, -1), 
+																	torch.flatten(img, 1, -1))**2))	
+			else:
+				loss = (1-alpha)*cls_loss_fn(pred, target) + alpha*(torch.mean(dst_loss_fn(torch.flatten(adv, 1, -1), 
+																	torch.flatten(img, 1, -1))**2))
+
+			loss.backward()
+			optimizer.step()
+
+			# Check adversary after updating image.
+			with torch.no_grad():
+				adv = get_inv_dwt_2d(LL, Y, ifm)
+				adv = preprocess(clip_pixels(adv))
+				pred = model(adv)
+				# print('pred', torch.max(pred, 1)[1])
+				# print('label', label)
+				if torch.all(torch.eq(torch.max(pred, 1)[1], target)):
+					# print('Success!')
+					break
 
 	return adv
 
@@ -154,4 +168,3 @@ def test_code(img):
 
 	fig.tight_layout()
 	plt.savefig('./imgs/one.png')
-
