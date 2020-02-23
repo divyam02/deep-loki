@@ -15,32 +15,50 @@ import cv2
 
 import logging
 
-def side_plot(og_img, pert_img, label, k_i, j):
+def side_plot(og_img, pert_img, label, k_i, j, dataset):
 	"""
 	Quick visual debug!
 	"""
+	classes_multi_pie = range(0, 377)
 	classes_tinyimagenet = range(0,200)
 	classes_cifar_10 = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 	# classes = classes_cifar_10
-	classes = classes_tinyimagenet
+	# classes = classes_tinyimagenet
+	classes = classes_multi_pie
 
 	np.save('./npy_files/adv_'+str(label), pert_img.data.cpu().numpy())
 
-	og_img[:][0] *= 0.2023
-	og_img[:][1] *= 0.1994
-	og_img[:][2] *= 0.2010
-	og_img[:][0] += 0.4914
-	og_img[:][1] += 0.4822
-	og_img[:][2] += 0.4465
+	if dataset=='multi-pie':
+		og_img[:, 0] *= 1.0
+		og_img[:, 1] *= 1.0
+		og_img[:, 2] *= 1.0
+		og_img[:, 0] += 131.0912
+		og_img[:, 1] += 103.8827
+		og_img[:, 2] += 91.4953
 
-	pert_img[:][0] *= 0.2023
-	pert_img[:][1] *= 0.1994
-	pert_img[:][2] *= 0.2010
-	pert_img[:][0] += 0.4914
-	pert_img[:][1] += 0.4822
-	pert_img[:][2] += 0.4465
+		pert_img[:, 0] *= 1.0
+		pert_img[:, 1] *= 1.0
+		pert_img[:, 2] *= 1.0
+		pert_img[:, 0] += 131.0912
+		pert_img[:, 1] += 103.8827
+		pert_img[:, 2] += 91.4953	
+
+	else:
+		og_img[:, 0] *= 0.2023
+		og_img[:, 1] *= 0.1994
+		og_img[:, 2] *= 0.2010
+		og_img[:, 0] += 0.4914
+		og_img[:, 1] += 0.4822
+		og_img[:, 2] += 0.4465
+
+		pert_img[:, 0] *= 0.2023
+		pert_img[:, 1] *= 0.1994
+		pert_img[:, 2] *= 0.2010
+		pert_img[:, 0] += 0.4914
+		pert_img[:, 1] += 0.4822
+		pert_img[:, 2] += 0.4465
 
 	_, ax = plt.subplots(nrows=list(og_img.size())[0], ncols=4, figsize=(15, 60))
 
@@ -55,8 +73,12 @@ def side_plot(og_img, pert_img, label, k_i, j):
 
 		# Pixel differences are of the order of 1e-7. Current method to visualize these
 		# values. I will fix this soon.
-		ax[i, 2].imshow((torch.abs(og_img[i] - pert_img[i])*1e6).data.cpu().permute(1, 2, 0))
-		ax[i, 3].imshow((torch.abs(og_img[i] - pert_img[i])*1e7).data.cpu().permute(1, 2, 0))
+		# if dataset=='multi-pie':
+		# 	ax[i, 2].imshow((torch.abs(og_img[i] - pert_img[i])).data.cpu().permute(1, 2, 0))
+		# 	ax[i, 3].imshow((torch.abs(og_img[i] - pert_img[i])).data.cpu().permute(1, 2, 0))			
+		# else:
+		ax[i, 2].imshow((torch.abs(og_img[i] - pert_img[i])*10).data.cpu().permute(1, 2, 0))
+		ax[i, 3].imshow((torch.abs(og_img[i] - pert_img[i])*100).data.cpu().permute(1, 2, 0))
 
 		ax[i, 0].set_title(classes[label[i]])
 		ax[i, 0].set_yticks([], [])
@@ -66,21 +88,21 @@ def side_plot(og_img, pert_img, label, k_i, j):
 		ax[i, 1].set_yticks([], [])
 		ax[i, 1].set_xticks([], [])
 
-		ax[i, 2].set_title('1e6xNoise')
+		ax[i, 2].set_title('10xNoise')
 		ax[i, 2].set_yticks([], [])
 		ax[i, 2].set_xticks([], [])
 
-		ax[i, 3].set_title('1e7xNoise')
+		ax[i, 3].set_title('100xNoise')
 		ax[i, 3].set_yticks([], [])
 		ax[i, 3].set_xticks([], [])
 
 		logger.setLevel(old_level) # Clipping message removal
 
+		# A second confirmation about the presence of noise.
+		# print('Noise is present?', torch.all(torch.abs(og_img - pert_img)==0))
+
 	plt.savefig('./imgs/works_'+str(j)+'.png')
 	plt.close()
-
-	# A second confirmation about the presence of noise.
-	# print('Noise is present?', torch.abs(og_img - pert_img))
 
 def parse_args():
 	"""
@@ -115,7 +137,7 @@ def parse_args():
 	parser.add_argument('--attack_type', dest='attack_type',
 						type=str, default='max_error')
 	parser.add_argument('--random_restarts', dest='random_restarts',
-						type=str, default='False')
+						type=bool, default=False)
 
 	args = parser.parse_args()
 	return args
@@ -162,7 +184,15 @@ if __name__ == '__main__':
 
 		test_data = datasets.ImageFolder(root='../data/tiny-imagenet-200/val/images', transform=morph)
 
-	
+
+	elif args.dataset=='multi-pie':
+
+		path = '../../mpie/val'
+		morph = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor(), 
+				transforms.Normalize(mean=[131.0912, 103.8827, 91.4953], std=[1, 1, 1])])
+
+		test_data = datasets.ImageFolder(root=path, transform=morph)
+		
 	else:
 		print("Unknown dataset. Help!")
 
@@ -188,8 +218,17 @@ if __name__ == '__main__':
 	elif args.net=="resnet50-madry":
 		print("Using Madry pretrained ResNet-50")
 
-	print("Setting network to eval mode")
+	elif args.net=="vggface2":
+		print("Using Oxford VGG Net")
+		from resnet50_scratch_dims_2048 import *
+		net = resnet50_scratch(weights_path='./resnet50_scratch_dims_2048.pth')
+		net.classifier = nn.Conv2d(2048, 337, kernel_size=[1, 1], stride=(1, 1))
+		net.load_state_dict(torch.load('../../drive/My Drive/multi_pie_data/best_model.pth')['model_state_dict'])
+
+	print("Freezing network layers and setting to eval mode")
 	net.eval()
+	for params in net.parameters():
+		params.requires_grad = False
 
 	if args.cuda:
 		net.cuda()
@@ -214,16 +253,19 @@ if __name__ == '__main__':
 		if args.attack_type=='next_class':
 			if args.dataset=='cifar10':target = (label.clone().detach() + 1)%10
 			if args.dataset=='tinyimagenet':target = (label.clone().detach() + 1)%200
+			if args.dataset=='multi-pie':target = (label.clone().detach() + 1)%337
 		if args.attack_type=='max_error':
 			if args.dataset=='cifar10':target = label.clone().detach()
 			if args.dataset=='tinyimagenet':target = label.clone().detach()
+			if args.dataset=='multi-pie':target = label.clone().detach()
 
 		pert_img = perturb_img(img.clone().detach(), label, target, net, args.attack_type, 
-								random_restarts=args.random_restarts)
+								args.dataset, random_restarts=args.random_restarts)
+
 		output = net(pert_img)
 		_, predicted = torch.max(output, 1)
-		# if i%10==0:
-		# 	print("Label:", label.data, "Predicted:", predicted.data, "Iter:", i)
+		if i%10==0:
+			print("Label:", label.data, "Predicted:", predicted.data, "Iter:", i)
 		if not torch.all(torch.eq(predicted, target)): 
 			print('\nAttack Failed! Image batch:', i)
 			print('Label:', label)
@@ -234,7 +276,7 @@ if __name__ == '__main__':
 			miss_incorrect+=(not(k or j))
 		correct+=(predicted==label).sum().item()
 		if (i+1)*args.batch_size%25==0:
-			side_plot(img, pert_img, label, predicted, i)
+			side_plot(img, pert_img, label, predicted, i, args.dataset)
 			print("\nMisclassified as target:\t\t", miss_correct/((i+1)*args.batch_size))
 			print("Misclassified, but not as target:\t", miss_incorrect/((i+1)*args.batch_size))
 			print("Network accuracy on perturbed test data:", correct/((i+1)*args.batch_size))
