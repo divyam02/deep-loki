@@ -1,6 +1,6 @@
 # deep-loki
 
-**Our paper titled WaveTransform: Crafting Adversarial Examples via Input Decomposition has been accepted at the ![AROW Workshop, ECCV 2020](https://eccv20-adv-workshop.github.io/)**. This repository will be updated soon.
+**Our paper titled WaveTransform: Crafting Adversarial Examples via Input Decomposition has been accepted at the [AROW Workshop, ECCV 2020](https://eccv20-adv-workshop.github.io/)**. This repository will be updated soon.
 
 Advances in Deep Learning have lead to the creation of learning agents that can perform non-trivial human level tasks (such as visual detection, speech recognition etc.). However, there exist inherent vulnerabilities in these systems. These vulnerabilities can be methodically exploited to manipulate the output of the system by subtly changing the input. These changes are almost imperceptible to the naked eye and are termed as adversarial perturbations. In context of visual systems, perturbed images are by design meant to fool networks that are otherwise deemed to be reliable by predicting incorrect classes with confidence. 
 
